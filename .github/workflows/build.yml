@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 1️⃣ --- بناء تطبيق الأندرويد Pro الحقيقي (APK) ---
+  # 1️⃣ --- بناء تطبيق الأندرويد Pro (APK) ---
   build-android:
     runs-on: ubuntu-latest
     steps:
@@ -21,7 +21,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      - name: Prepare build folder (Copy real system files)
+      - name: Prepare build folder
         run: |
           mkdir -p app/build
           rsync -av --exclude='.github' --exclude='app' --exclude='node_modules' . app/build/
@@ -67,7 +67,7 @@ jobs:
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-  # 2️⃣ --- بناء تطبيق الماكوس Pro (DMG الحقيقي الناجح) ---
+  # 2️⃣ --- بناء تطبيق الماكوس Pro (التصليح هنا لـ fs) ---
   build-macos:
     runs-on: macos-latest
     steps:
@@ -94,8 +94,9 @@ jobs:
             --app-name "ClinicCRMPro" \
             --frontend-dist "../dist"
 
+          # التعديل الصحيح والمجرب لموديول الـ fs الأساسي
           node -e '
-            const fs = require("json");
+            const fs = require("fs");
             const configPath = "src-tauri/tauri.conf.json";
             if (fs.existsSync(configPath)) {
               const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -132,7 +133,7 @@ jobs:
           path: src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 30
 
-  # 3️⃣ --- بناء تطبيق الويندوز Pro (EXE & MSI المضمون بالتصليح الشامل) ---
+  # 3️⃣ --- بناء تطبيق الويندوز Pro ---
   build-windows:
     runs-on: windows-latest
     steps:
@@ -154,7 +155,6 @@ jobs:
           Copy-Item -Path ".*", "*" -Destination "dist" -Recurse -Exclude "src-tauri", ".github", "node_modules", "dist", "app" -ErrorAction SilentlyContinue
           npx tauri init --ci --app-name "ClinicCRMPro" --frontend-dist "../dist" --dev-url "http://localhost:8080"
           
-          # التصليح الاعظم هنا: استخدام الـ elseif الصحيحة لـ PowerShell لعدم ضرب الآيكونز ثانية
           if (Test-Path "icon.png") { 
               npx tauri icon icon.png 
           } elseif (Test-Path "icon_1024.png") {
@@ -184,7 +184,7 @@ jobs:
           path: src-tauri/target/release/*.exe
           retention-days: 30
 
-  # 4️⃣ --- بناء تطبيق لينكس Pro (DEB الناجح والمجرب) ---
+  # 4️⃣ --- بناء تطبيق لينكس Pro ---
   build-linux:
     runs-on: ubuntu-latest
     steps:
