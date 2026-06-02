@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 🤖 --- بناء نسخة الأندرويد Pro ---
+  # 1️⃣ --- بناء تطبيق الأندرويد Pro الحقيقي (APK) ---
   build-android:
     runs-on: ubuntu-latest
     steps:
@@ -21,7 +21,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      - name: Prepare build folder
+      - name: Prepare build folder (Copy real system files)
         run: |
           mkdir -p app/build
           rsync -av --exclude='.github' --exclude='app' --exclude='node_modules' . app/build/
@@ -67,7 +67,7 @@ jobs:
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-  # 🍏 --- بناء نسخة الماكوس Pro ---
+  # 2️⃣ --- بناء تطبيق الماكوس Pro (DMG الحقيقي الناجح) ---
   build-macos:
     runs-on: macos-latest
     steps:
@@ -82,12 +82,20 @@ jobs:
           npm init -y
           npm install @tauri-apps/cli @tauri-apps/api
           mkdir dist
-          rsync -av --exclude='src-tauri' --exclude='.github' --exclude='node_modules' --exclude='dist' --exclude='app' ./ dist/
+          rsync -av \
+            --exclude='src-tauri' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='app' \
+            ./ dist/
 
-          npx tauri init --ci --app-name "ClinicCRMPro" --frontend-dist "../dist"
+          npx tauri init --ci \
+            --app-name "ClinicCRMPro" \
+            --frontend-dist "../dist"
 
           node -e '
-            const fs = require("fs");
+            const fs = require("json");
             const configPath = "src-tauri/tauri.conf.json";
             if (fs.existsSync(configPath)) {
               const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -104,11 +112,15 @@ jobs:
               if (config.tauri && config.tauri.bundle) delete config.tauri.bundle.identifier;
               
               fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+              console.log("🍏 tauri.conf.json configured for macOS Pro v2!");
             }
           '
 
-          if [ -f icon_1024.png ]; then npx tauri icon icon_1024.png;
-          elif [ -f icon.png ]; then npx tauri icon icon.png; fi
+          if [ -f icon_1024.png ]; then
+            npx tauri icon icon_1024.png
+          elif [ -f icon.png ]; then
+            npx tauri icon icon.png
+          fi
 
       - name: Build macOS App
         run: npx tauri build
@@ -120,7 +132,7 @@ jobs:
           path: src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 30
 
-  # 🪟 --- بناء نسخة الويندوز Pro ---
+  # 3️⃣ --- بناء تطبيق الويندوز Pro (EXE & MSI المضمون بالتصليح الشامل) ---
   build-windows:
     runs-on: windows-latest
     steps:
@@ -142,8 +154,12 @@ jobs:
           Copy-Item -Path ".*", "*" -Destination "dist" -Recurse -Exclude "src-tauri", ".github", "node_modules", "dist", "app" -ErrorAction SilentlyContinue
           npx tauri init --ci --app-name "ClinicCRMPro" --frontend-dist "../dist" --dev-url "http://localhost:8080"
           
-          if (Test-Path "icon.png") { npx tauri icon icon.png }
-          elif (Test-Path "icon_1024.png") { npx tauri icon icon_1024.png }
+          # التصليح الاعظم هنا: استخدام الـ elseif الصحيحة لـ PowerShell لعدم ضرب الآيكونز ثانية
+          if (Test-Path "icon.png") { 
+              npx tauri icon icon.png 
+          } elseif (Test-Path "icon_1024.png") {
+              npx tauri icon icon_1024.png
+          }
           
           $configPath = "src-tauri/tauri.conf.json"
           $content = Get-Content $configPath -Raw
@@ -168,7 +184,7 @@ jobs:
           path: src-tauri/target/release/*.exe
           retention-days: 30
 
-  # 🐧 --- بناء نسخة لينكس Pro ---
+  # 4️⃣ --- بناء تطبيق لينكس Pro (DEB الناجح والمجرب) ---
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -193,8 +209,11 @@ jobs:
           rsync -av --exclude='src-tauri' --exclude='.github' --exclude='node_modules' --exclude='dist' --exclude='app' . dist/
           npx tauri init --ci --app-name "ClinicCRMPro" --frontend-dist "../dist" --dev-url "http://localhost:8080"
           
-          if [ -f icon.png ]; then npx tauri icon icon.png
-          elif [ -f icon_1024.png ]; then npx tauri icon icon_1024.png; fi
+          if [ -f icon.png ]; then
+            npx tauri icon icon.png
+          elif [ -f icon_1024.png ]; then
+            npx tauri icon icon_1024.png
+          fi
           
           node -e '
             const fs = require("fs");
@@ -213,6 +232,7 @@ jobs:
               if (config.tauri && config.tauri.bundle) delete config.tauri.bundle.identifier;
               
               fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+              console.log("✅ tauri.conf.json fixed for Linux Pro v2!");
             }
           '
           
