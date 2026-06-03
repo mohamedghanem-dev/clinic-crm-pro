@@ -83,22 +83,84 @@
   --trans: 0.22s ease;
 }
 
-/* Reset */
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-html { font-size:15px; scroll-behavior:smooth; }
-body {
-  font-family: 'Cairo', 'Tajawal', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  direction: rtl;
-  min-height: 100vh;
-  overflow-x: hidden;
-  line-height: 1.6;
+// ══════════════════════════════════════════════════════════════
+//  AUTO-REFRESH SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+let refreshTimeout;
+function refreshData() {
+  const refreshBtn = document.getElementById('refreshBtn');
+  const refreshIcon = document.getElementById('refreshIcon');
+  const refreshSpinner = document.getElementById('refreshSpinner');
+  
+  // Show loading state
+  refreshIcon.style.display = 'none';
+  refreshSpinner.style.display = 'block';
+  refreshBtn.disabled = true;
+  
+  // Re-render relevant sections
+  const user = Auth.getCurrentUser();
+  if (!user) {
+    refreshIcon.style.display = 'block';
+    refreshSpinner.style.display = 'none';
+    refreshBtn.disabled = false;
+    return;
+  }
+  
+  try {
+    // Get current view and refresh accordingly
+    const currentPage = document.querySelector('.spa-page:not([style*="display:none"])');
+    if (currentPage) {
+      const pageId = currentPage.id;
+      if (pageId === 'page-dashboard') renderDashboard();
+      else if (pageId === 'page-patients') renderPatients();
+      else if (pageId === 'page-sessions') renderSessions();
+      else if (pageId === 'page-appointments') renderAppointments();
+      else if (pageId === 'page-finance') renderFinance();
+      else if (pageId === 'page-reports') renderReports();
+      else if (pageId === 'page-settings') { renderBranches(); renderSettingsUI(); }
+    }
+    showNotification('تم تحديث البيانات بنجاح', 'success');
+  } catch (e) {
+    console.error('[v0] Refresh error:', e);
+    showNotification('خطأ في تحديث البيانات', 'error');
+  }
+  
+  // Hide loading state
+  refreshTimeout = setTimeout(() => {
+    refreshIcon.style.display = 'block';
+    refreshSpinner.style.display = 'none';
+    refreshBtn.disabled = false;
+  }, 500);
 }
-a { text-decoration:none; color:inherit; }
-img { max-width:100%; }
-button { cursor:pointer; font-family:inherit; }
-input, textarea, select { font-family:inherit; }
+
+// Initialize event listeners for auto-refresh
+RefreshEvents.on('branches-updated', () => {
+  console.log('[v0] Branches updated, refreshing UI');
+  const currentPage = document.querySelector('.spa-page:not([style*="display:none"])');
+  if (currentPage && currentPage.id === 'page-settings') {
+    renderBranches();
+  }
+});
+
+RefreshEvents.on('settings-updated', () => {
+  console.log('[v0] Settings updated, refreshing UI');
+  const currentPage = document.querySelector('.spa-page:not([style*="display:none"])');
+  if (currentPage && currentPage.id === 'page-settings') {
+    renderSettingsUI();
+  }
+});
+
+RefreshEvents.on('account-updated', () => {
+  console.log('[v0] Account updated');
+  // Update header info if visible
+  const profileName = document.getElementById('profileName');
+  if (profileName) {
+    const user = Auth.getCurrentUser();
+    profileName.textContent = user.name || user.username;
+  }
+});
+
 
 /* ============================================
    LAYOUT
@@ -2336,6 +2398,10 @@ body.page-exit {
         <select id="clinicSelector" style="border:1.5px solid var(--border);border-radius:50px;padding:5px 12px;font-size:0.78rem;background:var(--surface-2);color:var(--text);cursor:pointer;font-family:inherit;outline:none;">
           <option>جميع الفروع</option>
         </select>
+        <button class="topbar-btn" id="refreshBtn" onclick="refreshData()" title="تحديث البيانات" style="position:relative;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="refreshIcon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"/></svg>
+          <span class="loading-spinner" id="refreshSpinner" style="display:none;position:absolute;width:16px;height:16px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin 0.6s linear infinite;"></span>
+        </button>
         <button class="topbar-btn" id="themeToggleBtn" onclick="toggleTheme()" title="تبديل المظهر">
           <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -2555,6 +2621,15 @@ body.page-exit {
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">الأمراض المزمنة</label><input type="text" class="form-control" id="pChronic" placeholder="مثال: ضغط، سكر، قلب..."></div>
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">الأدوية الحالية</label><input type="text" class="form-control" id="pMedications" placeholder="الأدوية التي يتناولها المريض حالياً..."></div>
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">ملاحظات إضافية</label><textarea class="form-control" id="pNotes" rows="2" placeholder="أي ملاحظات أخرى..."></textarea></div>
+      
+      <!-- Financial Fields -->
+      <hr style="grid-column:1/-1;margin:12px 0;border:none;border-top:1px solid var(--border-light);">
+      <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">معلومات مالية</div>
+      <div class="form-group"><label class="form-label">حالة الدفع</label><select class="form-control" id="pPaymentStatus"><option value="unpaid">غير مدفوع</option><option value="partial">مدفوع جزئياً</option><option value="paid">مدفوع</option></select></div>
+      <div class="form-group"><label class="form-label">المبلغ المطلوب (ج.م)</label><input type="number" class="form-control" id="pAmountRequired" placeholder="0" min="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">المبلغ المدفوع (ج.م)</label><input type="number" class="form-control" id="pAmountPaid" placeholder="0" min="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">تاريخ آخر دفع</label><input type="date" class="form-control" id="pPaymentDate"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">ملاحظات مالية</label><textarea class="form-control" id="pFinancialNotes" rows="2" placeholder="ملاحظات تتعلق بالدفع..."></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="savePatient()">حفظ المريض</button><button class="btn btn-outline" onclick="closeModal('addPatientModal')">إلغاء</button></div>
   </div>
@@ -2596,6 +2671,15 @@ body.page-exit {
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">الأمراض المزمنة</label><input type="text" class="form-control" id="epChronic"></div>
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">الأدوية الحالية</label><input type="text" class="form-control" id="epMedications"></div>
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">ملاحظات</label><textarea class="form-control" id="epNotes" rows="2"></textarea></div>
+      
+      <!-- Financial Fields -->
+      <hr style="grid-column:1/-1;margin:12px 0;border:none;border-top:1px solid var(--border-light);">
+      <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">معلومات مالية</div>
+      <div class="form-group"><label class="form-label">حالة الدفع</label><select class="form-control" id="epPaymentStatus"><option value="unpaid">غير مدفوع</option><option value="partial">مدفوع جزئياً</option><option value="paid">مدفوع</option></select></div>
+      <div class="form-group"><label class="form-label">المبلغ المطلوب (ج.م)</label><input type="number" class="form-control" id="epAmountRequired" placeholder="0" min="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">المبلغ المدفوع (ج.م)</label><input type="number" class="form-control" id="epAmountPaid" placeholder="0" min="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">تاريخ آخر دفع</label><input type="date" class="form-control" id="epPaymentDate"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">ملاحظات مالية</label><textarea class="form-control" id="epFinancialNotes" rows="2" placeholder="ملاحظات تتعلق بالدفع..."></textarea></div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="updatePatient()">حفظ التعديلات</button><button class="btn btn-outline" onclick="closeModal('editPatientModal')">إلغاء</button></div>
   </div>
@@ -2867,6 +2951,7 @@ body.page-exit {
       <div class="flex gap-10 flex-wrap">
         <button class="btn btn-outline" onclick="exportData()">تصدير كل البيانات (JSON)</button>
         <button class="btn btn-outline" onclick="exportPatientsCsv()">تصدير المرضى (CSV)</button>
+        <button class="btn btn-success" onclick="createBackup()">إنشاء نسخة احتياطية</button>
       </div>
     </div>
     <div class="card mb-16">
@@ -2874,6 +2959,11 @@ body.page-exit {
       <p class="text-muted text-sm mb-16">استيراد بيانات محفوظة سابقاً (JSON)</p>
       <input type="file" id="importFile" accept=".json" class="form-control" style="margin-bottom:10px;">
       <button class="btn btn-outline" onclick="importData()">استيراد</button>
+    </div>
+    <div class="card mb-16">
+      <div class="card-header"><span class="card-title">استعادة النسخة الاحتياطية</span></div>
+      <p class="text-muted text-sm mb-16">استعادة البيانات من نسخة احتياطية محفوظة</p>
+      <button class="btn btn-success" onclick="restoreBackup()">استعادة نسخة احتياطية</button>
     </div>
     <div class="card" style="border-color:var(--danger);">
       <div class="card-header"><span class="card-title" style="color:var(--danger);">منطقة الخطر</span></div>
@@ -3013,6 +3103,23 @@ if ('serviceWorker' in navigator) {
 
 // Register Service Worker
 
+// ============================================
+//  EVENT SYSTEM FOR AUTO-REFRESH
+// ============================================
+const RefreshEvents = {
+  listeners: {},
+  
+  on(event, callback) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  },
+  
+  emit(event, data) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(cb => cb(data));
+    }
+  }
+};
 
 // ============================================
 //  DATA STORE (localStorage)
@@ -4089,11 +4196,23 @@ function editPatient() {
   document.getElementById('epChronic').value = p.chronicDiseases||'';
   document.getElementById('epMedications').value = p.medications||'';
   document.getElementById('epNotes').value = p.notes||'';
+  
+  // Financial fields
+  document.getElementById('epPaymentStatus').value = p.paymentStatus||'unpaid';
+  document.getElementById('epAmountRequired').value = p.amountRequired||'';
+  document.getElementById('epAmountPaid').value = p.amountPaid||'';
+  document.getElementById('epPaymentDate').value = p.paymentDate||'';
+  document.getElementById('epFinancialNotes').value = p.financialNotes||'';
+  
   openModal('editPatientModal');
 }
 
 function updatePatient() {
   const id = parseInt(document.getElementById('editPatientId').value);
+  
+  const amountRequired = parseFloat(document.getElementById('epAmountRequired').value) || 0;
+  const amountPaid = parseFloat(document.getElementById('epAmountPaid').value) || 0;
+  
   Patients.update(id, {
     name: document.getElementById('epName').value,
     phone: document.getElementById('epPhone').value,
@@ -4106,7 +4225,13 @@ function updatePatient() {
     allergies: document.getElementById('epAllergies').value,
     chronicDiseases: document.getElementById('epChronic').value,
     medications: document.getElementById('epMedications').value,
-    notes: document.getElementById('epNotes').value
+    notes: document.getElementById('epNotes').value,
+    paymentStatus: document.getElementById('epPaymentStatus').value || 'unpaid',
+    amountRequired: amountRequired,
+    amountPaid: amountPaid,
+    amountRemaining: amountRequired - amountPaid,
+    paymentDate: document.getElementById('epPaymentDate').value || null,
+    financialNotes: document.getElementById('epFinancialNotes').value
   });
   closeModal('editPatientModal'); renderPatients(); showToast('تم تحديث بيانات المريض');
 }
@@ -4124,6 +4249,10 @@ function savePatient() {
   const name = document.getElementById('pName').value.trim();
   const phone = document.getElementById('pPhone').value.trim();
   if (!name||!phone) { showToast('يرجى إدخال الاسم ورقم الهاتف','error'); return; }
+  
+  const amountRequired = parseFloat(document.getElementById('pAmountRequired').value) || 0;
+  const amountPaid = parseFloat(document.getElementById('pAmountPaid').value) || 0;
+  
   Patients.add({ name, phone,
     phone2: document.getElementById('pPhone2').value.trim(),
     age: parseInt(document.getElementById('pAge').value)||null,
@@ -4135,9 +4264,15 @@ function savePatient() {
     chronicDiseases: document.getElementById('pChronic').value.trim(),
     medications: document.getElementById('pMedications').value.trim(),
     notes: document.getElementById('pNotes').value,
+    paymentStatus: document.getElementById('pPaymentStatus').value || 'unpaid',
+    amountRequired: amountRequired,
+    amountPaid: amountPaid,
+    amountRemaining: amountRequired - amountPaid,
+    paymentDate: document.getElementById('pPaymentDate').value || null,
+    financialNotes: document.getElementById('pFinancialNotes').value,
     doctorId: user.id, clinicId: user.clinicId||1 });
   closeModal('addPatientModal');
-  ['pName','pPhone','pPhone2','pAge','pAddress','pAllergies','pChronic','pMedications','pNotes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['pName','pPhone','pPhone2','pAge','pAddress','pAllergies','pChronic','pMedications','pNotes','pPaymentStatus','pAmountRequired','pAmountPaid','pPaymentDate','pFinancialNotes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   renderPatients(); renderPatientStats(); showToast('تم إضافة المريض بنجاح');
 }
 
@@ -4364,7 +4499,7 @@ function renderFinance() {
 function markPaid(id) { Sessions.update(id,{paid:true}); renderFinance(); showToast('تم تسجيل الدفع'); }
 function markUnpaid(id) { if (!confirm('هل تريد إلغاء تسجيل هذا الدفع؟')) return; Sessions.update(id,{paid:false}); renderFinance(); showToast('تم إلغاء تسجيل الدفع','warning'); }
 
-// ══════════════════════════════════════════════
+// ═════════════════════════════════════════════��
 //  STAFF PAGE
 // ══════════════════════════════════════════════
 let selectedStaffId = null;
@@ -4491,6 +4626,7 @@ function saveClinicSettings() {
   const s=DB.get('settings',{});
   DB.set('settings',{...s,clinicName:document.getElementById('settClinicName').value,doctorName:document.getElementById('settDoctorName').value,phone:document.getElementById('settPhone').value,address:document.getElementById('settAddress').value,currency:document.getElementById('settCurrency').value});
   showToast('تم حفظ بيانات العيادة');
+  RefreshEvents.emit('settings-updated');
 }
 
 function saveAccountSettings() {
@@ -4499,6 +4635,7 @@ function saveAccountSettings() {
   if (idx===-1) return;
   users[idx]={...users[idx],name:document.getElementById('accName').value,email:document.getElementById('accEmail').value,phone:document.getElementById('accPhone').value,specialty:document.getElementById('accSpecialty').value};
   DB.set('users',users); showToast('تم حفظ بيانات الحساب');
+  RefreshEvents.emit('account-updated');
 }
 
 function changePassword() {
@@ -4534,6 +4671,7 @@ function saveScheduleSettings() {
   document.querySelectorAll('.day-toggle input:checked').forEach(cb=>workDays.push(parseInt(cb.parentElement.dataset.day)));
   DB.set('settings',{...s,workStart:document.getElementById('workStart').value,workEnd:document.getElementById('workEnd').value,sessionDuration:parseInt(document.getElementById('sessionDuration').value),workDays});
   showToast('تم حفظ إعدادات جدول العمل');
+  RefreshEvents.emit('settings-updated');
 }
 
 function renderBranches() {
@@ -4561,6 +4699,7 @@ function saveBranch() {
   const clinics=DB.get('clinics',[]);
   clinics.push({id:Utils.generateId(clinics),name,active:true,address:document.getElementById('branchAddress').value,phone:document.getElementById('branchPhone').value});
   DB.set('clinics',clinics); closeModal('addBranchModal'); renderBranches(); showToast('تم إضافة الفرع');
+  RefreshEvents.emit('branches-updated');
 }
 
 function exportData() {
@@ -4592,6 +4731,90 @@ function resetAll() {
   if (!confirm('تحذير: سيتم حذف جميع بيانات المرضى والمواعيد والجلسات. هل أنت متأكد؟')) return;
   if (!confirm('هذا الإجراء لا يمكن التراجع عنه. هل تريد المتابعة؟')) return;
   ['patients','appointments','sessions'].forEach(k=>DB.remove(k)); showToast('تم مسح البيانات','warning'); setTimeout(()=>navTo('dashboard'),1000);
+}
+
+async function createBackup() {
+  const data = {
+    users: DB.get('users', []),
+    patients: DB.get('patients', []),
+    appointments: DB.get('appointments', []),
+    sessions: DB.get('sessions', []),
+    clinics: DB.get('clinics', []),
+    settings: DB.get('settings', {}),
+    backup_timestamp: new Date().toISOString(),
+    backup_version: '1.0'
+  };
+  
+  // Check if running in Electron
+  if (window.electron && window.electron.saveBackup) {
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const result = await window.electron.saveBackup(data, `clinic-backup-${timestamp}.json`);
+    if (result.success) {
+      showNotification('تم إنشاء النسخة الاحتياطية بنجاح', 'success');
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clinic-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification('تم إنشاء النسخة الاحتياطية بنجاح', 'success');
+  }
+}
+
+async function restoreBackup() {
+  if (!confirm('تحذير: سيتم استبدال جميع البيانات الحالية. هل تريد المتابعة؟')) return;
+  
+  // Check if running in Electron
+  if (window.electron && window.electron.loadBackup) {
+    const result = await window.electron.loadBackup();
+    if (result.success) {
+      try {
+        const data = result.data;
+        if (data.users) DB.set('users', data.users);
+        if (data.patients) DB.set('patients', data.patients);
+        if (data.appointments) DB.set('appointments', data.appointments);
+        if (data.sessions) DB.set('sessions', data.sessions);
+        if (data.clinics) DB.set('clinics', data.clinics);
+        if (data.settings) DB.set('settings', data.settings);
+        showNotification('تم استعادة النسخة الاحتياطية بنجاح', 'success');
+        setTimeout(() => location.reload(), 1500);
+      } catch (e) {
+        showNotification('خطأ في قراءة النسخة الاحتياطية', 'error');
+      }
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const file = document.getElementById('importFile').files[0];
+    if (!file) {
+      showNotification('يرجى اختيار ملف النسخة الاحتياطية', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.users) DB.set('users', data.users);
+        if (data.patients) DB.set('patients', data.patients);
+        if (data.appointments) DB.set('appointments', data.appointments);
+        if (data.sessions) DB.set('sessions', data.sessions);
+        if (data.clinics) DB.set('clinics', data.clinics);
+        if (data.settings) DB.set('settings', data.settings);
+        showNotification('تم استعادة النسخة الاحتياطية بنجاح', 'success');
+        setTimeout(() => location.reload(), 1500);
+      } catch {
+        showNotification('ملف النسخة الاحتياطية غير صالح', 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -4757,6 +4980,7 @@ function updateBranch() {
     active: document.getElementById('editBranchActive').value === 'true'
   };
   DB.set('clinics', clinics); closeModal('editBranchModal'); renderBranches(); showToast('تم تحديث الفرع');
+  RefreshEvents.emit('branches-updated');
 }
 
 function deleteBranch(id) {
@@ -4764,13 +4988,14 @@ function deleteBranch(id) {
   if (clinics.length <= 1) { showToast('يجب الإبقاء على فرع واحد على الأقل', 'error'); return; }
   if (!confirm('هل تريد حذف هذا الفرع؟')) return;
   DB.set('clinics', clinics.filter(c => c.id !== id)); renderBranches(); showToast('تم حذف الفرع', 'warning');
+  RefreshEvents.emit('branches-updated');
 }
 
 // ══════════════════════════════════════════════════════════════
 //  EXPORT & PRINT FUNCTIONS
 // ══════════════════════════════════════════════════════════════
 
-function exportPatientsPDF() {
+async function exportPatientsPDF() {
   const user = Auth.getCurrentUser();
   const patients = Patients.getAll(user.id);
   const sessions = Sessions.getAll(user.id);
@@ -4782,8 +5007,7 @@ function exportPatientsPDF() {
     const rev = sessions.filter(s => s.patientId === p.id && s.paid).reduce((a,s)=>a+(s.fee||0),0);
     return `<tr><td>${Utils.escapeHtml(p.name)}</td><td dir="ltr">${p.phone||'-'}</td><td>${p.age||'-'}</td><td>${p.gender||'-'}</td><td>${p.bloodType||'-'}</td><td style="text-align:center">${sc}</td><td>${rev.toLocaleString()} ${currency}</td><td>${Utils.formatDateShort(p.createdAt)}</td></tr>`;
   }).join('');
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>قائمة المرضى</title>
+  const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>قائمة المرضى</title>
   <style>*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:20px;font-size:13px;color:#1a2030}
   .hdr{border-bottom:3px solid #0D1B2A;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between}
   h1{margin:0;font-size:17px;color:#0D1B2A}
@@ -4798,11 +5022,26 @@ function exportPatientsPDF() {
   <table><thead><tr><th>الاسم</th><th>الهاتف</th><th>العمر</th><th>الجنس</th><th>فصيلة الدم</th><th>الجلسات</th><th>الإيرادات</th><th>تاريخ التسجيل</th></tr></thead>
   <tbody>${rows}</tbody></table>
   <div class="footer">نظام إدارة العيادات — ${clinicName}</div>
-  <script>window.onload=()=>{window.print()}<\/script></body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  // Check if running in Electron
+  if (window.electron && window.electron.savePDF) {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const result = await window.electron.savePDF(htmlContent, `patients-list-${timestamp}.html`);
+    if (result.success) {
+      showNotification('تم حفظ الملف بنجاح', 'success');
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const w = window.open('','_blank');
+    w.document.write(htmlContent + '<script>window.onload=()=>{window.print()}<\/script>');
+    w.document.close();
+  }
 }
 
-function printPatientFile() {
+async function printPatientFile() {
   const user = Auth.getCurrentUser();
   const p = Patients.get(selectedPatientId); if (!p) return;
   const sessions = Sessions.getAll(user.id).filter(s => s.patientId === p.id);
@@ -4812,8 +5051,7 @@ function printPatientFile() {
   const currency = settings.currency || 'ج.م';
   const totalRev = sessions.filter(s=>s.paid).reduce((a,s)=>a+(s.fee||0),0);
   const sessRows = sessions.map(s=>`<tr><td>${Utils.formatDateShort(s.date)}</td><td>${Utils.escapeHtml(s.diagnosis||'-')}</td><td>${Utils.escapeHtml(s.prescription||'-')}</td><td>${s.status==='completed'?'مكتملة':'جارية'}</td><td>${(s.fee||0).toLocaleString()} ${currency}</td><td>${s.paid?'✓ مدفوع':'⏳ معلق'}</td></tr>`).join('');
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>ملف المريض — ${p.name}</title>
+  const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>ملف المريض — ${p.name}</title>
   <style>*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:24px;font-size:13px;color:#1a2030}
   .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0D1B2A;padding-bottom:12px;margin-bottom:18px}
   .cn{font-size:17px;font-weight:800;color:#0D1B2A}
@@ -4853,11 +5091,26 @@ function printPatientFile() {
   <table><thead><tr><th>التاريخ</th><th>التشخيص</th><th>الوصفة</th><th>الحالة</th><th>الرسوم</th><th>الدفع</th></tr></thead>
   <tbody>${sessRows}</tbody></table>`:'<p style="color:#888;font-size:12px;text-align:center;padding:16px">لا توجد جلسات</p>'}
   <div class="footer">${clinicName} — نظام إدارة العيادات</div>
-  <script>window.onload=()=>{window.print()}<\/script></body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  // Check if running in Electron
+  if (window.electron && window.electron.savePDF) {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const result = await window.electron.savePDF(htmlContent, `patient-file-${p.name}-${timestamp}.html`);
+    if (result.success) {
+      showNotification('تم حفظ الملف بنجاح', 'success');
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const w = window.open('','_blank');
+    w.document.write(htmlContent + '<script>window.onload=()=>{window.print()}<\/script>');
+    w.document.close();
+  }
 }
 
-function exportSessionInvoice(sessionId) {
+async function exportSessionInvoice(sessionId) {
   const s = Sessions.get(sessionId); if (!s) return;
   const patient = Patients.get(s.patientId);
   const settings = DB.get('settings', {});
@@ -4865,8 +5118,7 @@ function exportSessionInvoice(sessionId) {
   const doctorName = settings.doctorName || '';
   const currency = settings.currency || 'ج.م';
   const invNum = String(s.id).padStart(5,'0');
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>إيصال #${invNum}</title>
+  const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>إيصال #${invNum}</title>
   <style>*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:30px;color:#1a2030;max-width:480px;margin:0 auto}
   .inv{border:2px solid #0D1B2A;border-radius:12px;overflow:hidden}
   .ih{background:#0D1B2A;color:white;padding:20px 24px;text-align:center}
@@ -4894,11 +5146,25 @@ function exportSessionInvoice(sessionId) {
     </div>
   </div>
   <div class="footer">شكراً لثقتكم — ${clinicName}</div>
-  <script>window.onload=()=>{window.print()}<\/script></body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  // Check if running in Electron
+  if (window.electron && window.electron.savePDF) {
+    const result = await window.electron.savePDF(htmlContent, `invoice-${invNum}.html`);
+    if (result.success) {
+      showNotification('تم حفظ الإيصال بنجاح', 'success');
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const w = window.open('','_blank');
+    w.document.write(htmlContent + '<script>window.onload=()=>{window.print()}<\/script>');
+    w.document.close();
+  }
 }
 
-function exportReportPDF() {
+async function exportReportPDF() {
   const user = Auth.getCurrentUser();
   const sessions = Sessions.getAll(user.id);
   const patients = DB.get('patients', []);
@@ -4911,8 +5177,7 @@ function exportReportPDF() {
     const p=patients.find(pt=>pt.id===s.patientId);
     return `<tr><td>${Utils.formatDateShort(s.date)}</td><td>${Utils.escapeHtml(p?p.name:'-')}</td><td>${Utils.escapeHtml(s.diagnosis||'-')}</td><td>${s.status==='completed'?'مكتملة':'جارية'}</td><td>${(s.fee||0).toLocaleString()} ${currency}</td><td>${s.paid?'✓ مدفوع':'⏳ معلق'}</td></tr>`;
   }).join('');
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير — ${clinicName}</title>
+  const htmlContent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>تقرير — ${clinicName}</title>
   <style>*{box-sizing:border-box}body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:20px;font-size:13px;color:#1a2030}
   .hdr{border-bottom:3px solid #0D1B2A;padding-bottom:12px;margin-bottom:14px;display:flex;justify-content:space-between}
   h1{margin:0;font-size:17px;color:#0D1B2A}
@@ -4936,8 +5201,23 @@ function exportReportPDF() {
   <table><thead><tr><th>التاريخ</th><th>المريض</th><th>التشخيص</th><th>الحالة</th><th>الرسوم</th><th>الدفع</th></tr></thead>
   <tbody>${rows}</tbody></table>
   <div class="footer">${clinicName} — نظام إدارة العيادات المتكامل</div>
-  <script>window.onload=()=>{window.print()}<\/script></body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  // Check if running in Electron
+  if (window.electron && window.electron.savePDF) {
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const result = await window.electron.savePDF(htmlContent, `report-${timestamp}.html`);
+    if (result.success) {
+      showNotification('تم حفظ التقرير بنجاح', 'success');
+    } else {
+      showNotification('خطأ: ' + result.error, 'error');
+    }
+  } else {
+    // Fallback for browser
+    const w = window.open('','_blank');
+    w.document.write(htmlContent + '<script>window.onload=()=>{window.print()}<\/script>');
+    w.document.close();
+  }
 }
 
 </script>
